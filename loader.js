@@ -95,10 +95,10 @@ function readImage(file) {
 
 function convertEurobank(filecontent){
 	let string = "Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\r\n";
-	var lines = filecontent.split('\n');
+	var lines = filecontent.split('"\n"');
     for(var line = 1; line < lines.length; line++){
 		linestr = lines[line];
-		linestr = linestr.substring(1, linestr.length - 1);
+		//linestr = linestr.substring(1, linestr.length - 1);
 		var columns = linestr.split('","');
 		
 		// check lines without data
@@ -113,9 +113,34 @@ function convertEurobank(filecontent){
 		columns[3] = columns[3].replace("F/O: ", "");
 		
 		var description = columns[3].split(' - ')[0];
-		var payee = "";
+		var payee = '';
 		if(columns[3].split(' - ').length > 1){
 			payee = columns[3].split(' - ')[1];
+		}
+		
+		// save text only before "for card"
+		if(payee.split('for card').length > 1){
+			payee = payee.split('for card')[0];
+			payee = payee.trim();
+		}
+		
+		// if "SWIFT" and more than one line then save only second line
+		if((payee.indexOf("SWIFT") > -1) && (payee.indexOf("\n") > -1)){
+			payee = payee.split('\n')[1].trim();
+		}
+		
+		// if begin from "for " then then save text after "for "
+		if(payee.indexOf("for ") == 0){
+			payee = payee.split('for ')[1].trim();
+		}
+		
+		//del all eols
+		payee = payee.replace("\n", " ");
+		payee = payee.replace("\r", " ");
+		
+		// del '"' in last line of file
+		if(columns[6].indexOf('"') == columns[6].length - 2){
+			columns[6] = columns[6].substring(0, columns[6].length-2);
 		}
 		
 		string += columns[0] + ","    						//Posting Date
@@ -131,18 +156,111 @@ function convertEurobank(filecontent){
 	return string;
 }
 
+function convertFIBank(filecontent){
+	let string = "reference,datetime,valuedate,debit_credit,trname,contragent,rem_i,rem_ii,rem_iii\r\n";
+	var lines = filecontent.split('\r\n');
+    for(var line = 1; line < lines.length; line++){
+		linestr = lines[line];
+		//linestr = linestr.substring(1, linestr.length - 1);
+		var columns = linestr.split(',');
+		
+		// check lines without data
+		if(columns.length == 1){
+			continue;
+		}
+		
+		columns[1] = columns[1].split(' - ')[0];
+		columns[2] = columns[2].split(' - ')[0];
+		
+		var debit_credit = (columns[3] == "" ? columns[4]:columns[3]);
+		if(debit_credit.indexOf(".") == 0){
+			debit_credit = "0" + debit_credit;
+		} 
+		
+		if(columns[4] == ""){
+			debit_credit = "-" + debit_credit;
+		}
+		
+		
+		string += columns[0] + ","    						//reference
+					+ columns[1] + ","						//datetime
+					+ columns[2] + "," 						//valuedate
+					+ debit_credit + ","	 				// debit_credit
+					+ columns[5] + ","						//trname
+					+ columns[6] + ","							//contragent
+					+ columns[7] + ","							//rem_i
+					+ columns[8] + ","							//rem_ii
+					+ columns[9]+ "\r\n";					//rem_iii
+		 
+      //string += '\n';
+    }
+	return string;
+}
+
+function convertHellenic(filecontent){
+	let string = "ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,PAYEE,DEBIT_CREDIT,VALUE DATE,BALANCE\r\n";
+	//console.log(filecontent);
+	var lines = filecontent.split('\n');
+    for(var line = 1; line < lines.length; line++){
+		linestr = lines[line];
+		//linestr = linestr.substring(1, linestr.length - 1);
+		var columns = linestr.split('\n');
+		
+		// check lines without data
+		if(columns.length == 1){
+			continue;
+		}
+		
+		/*columns[3] = columns[3].replace("Purchase  ", "");
+		columns[3] = columns[3].replace("Handling Fee  ", "");
+		columns[3] = columns[3].replace("- - Web Ref", "");
+		columns[3] = columns[3].replace(" - Web Ref", "");
+		columns[3] = columns[3].replace("F/O: ", "");*/
+		
+		var description = columns[4].split(' ')[0];
+		var payee = columns[4].substring(description.length, columns[5].length - description.length - 1);
+		
+		string += columns[0] + ","    						//ACCOUNT NO
+					+ columns[1] + ","						//PERIOD
+					+ columns[2] + "," 						//CURRENCY
+					+ columns[2] + "," 						//DATE
+					+ description + ","						//DESCRIPTION
+					+ payee + ","							//PAYEE
+					+ columns[5] + ","	 					//DEBIT_CREDIT 
+					+ columns[6] + ","	 					//DEBIT_CREDIT 
+					+ columns[7]+ "\r\n";					//BALANCE
+		 
+      //string += '\n';
+    }
+	return string;
+}
+
 function readFile(file) {
   const reader = new FileReader();
+  const ext = re.exec(file.name)[1];
+  
   reader.addEventListener('load', (event) => {
-    const result = event.target.result;
+    var result = event.target.result;
 	
 	
 
 	
 	//showout.innerHTML  = result; 
 	fileName = file.name;
-	ext = re.exec(file.name)[1];
 	
+	if (ext.toLowerCase() == "xls"){
+        var cfb = XLSX.read(event.target.result, {type: 'binary'});
+        //var wb = XLS.parse_xlscfb(cfb);
+        // Loop Over Each Sheet
+        //wb.SheetNames.forEach(function(sheetName) {
+            // Obtain The Current Row As CSV
+            /*var sCSV*/ result = XLS.utils.make_csv(cfb.Sheets[cfb.SheetNames[0]]);   
+            //var oJS = XLS.utils.sheet_to_row_object_array(wb.Sheets[sheetName]);   
+
+            //$("#my_file_output").html(sCSV);
+            //console.log(oJS)
+        //});
+	}
 	var today = new Date();
 	var date = today.getFullYear() + String((today.getMonth()+1)).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
 	var time = +String(today.getHours()).padStart(2, '0')  + String(today.getMinutes()).padStart(2, '0')  + String(today.getSeconds()).padStart(2, '0');
@@ -154,6 +272,10 @@ function readFile(file) {
 	// chekBankSignature
 	if(result.split('\n')[0] == '"Posting Date","Value Date","UTN","Description","Debit","Credit","Balance"'){
 		string = convertEurobank(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
+	}else if(result.split('\n')[0] == 'reference,datetime,valuedate,debit,credit,trname,contragent,rem_i,rem_ii,rem_iii\r'){
+		string = convertFIBank(result);
+	}else if(ext == "xls"){
+		string = convertHellenic(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
 	}else{
 		showout.innerHTML  = "Do not recognize the bank";
 		return;
@@ -183,34 +305,12 @@ function readFile(file) {
       //console.log(reader.error);
 	  showout.innerHTML  = reader.error; 
     });
-  reader.readAsText(file);
-}
-
-function uploadFile(file, i) {
-	//alert("hello");
-  /*var url = 'https://api.cloudinary.com/v1_1/joezimim007/image/upload'
-  var xhr = new XMLHttpRequest()
-  var formData = new FormData()
-  xhr.open('POST', url, true)
-  xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest')
-
-  // Update progress (can be used to show progress indicator)
-  xhr.upload.addEventListener("progress", function(e) {
-    updateProgress(i, (e.loaded * 100.0 / e.total) || 100)
-  })
-
-  xhr.addEventListener('readystatechange', function(e) {
-    if (xhr.readyState == 4 && xhr.status == 200) {
-      updateProgress(i, 100) // <- Add this
-    }
-    else if (xhr.readyState == 4 && xhr.status != 200) {
-      // Error. Inform the user
-    }
-  })
-
-  formData.append('upload_preset', 'ujpu6gyk')
-  formData.append('file', file)
-  xhr.send(formData)*/
+  if ((ext.toLowerCase() == "xls")||(ext.toLowerCase() == "xlsx")){
+	reader.readAsBinaryString(file);  
+  }	else{
+	reader.readAsText(file);  
+  }
+  
 }
 
 function doSave() {

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <link rel="stylesheet" type="text/css" href="style.css">
 <script src="FileSaver.js"></script>
+<script src="xls.js"></script>
 <title>CSV converter</title>
 </head>
 
@@ -11,7 +12,7 @@
 <div id="drop-area">
   <form class="my-form">
     <p>Upload file with the file dialog or by dragging and dropping onto the dashed region</p>
-    <input type="file" id="fileElem" multiple accept="image/*" onchange="handleFiles(this.files)">
+    <input type="file" id="fileElem" multiple accept=".xls,.xlsx,.txt,.csv" onchange="handleFiles(this.files)">
     <label class="button" for="fileElem">Select file</label>
 	<p id = "showresult"></p>
   </form>

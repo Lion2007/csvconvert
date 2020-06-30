@@ -93,6 +93,89 @@ function readImage(file) {
   reader.readAsDataURL(file);
 }
 
+function CSVToArray( strData, strDelimiter ){
+	// Check to see if the delimiter is defined. If not,
+	// then default to comma.
+	strDelimiter = (strDelimiter || ",");
+
+	// Create a regular expression to parse the CSV values.
+	var objPattern = new RegExp(
+		(
+			// Delimiters.
+			"(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+
+			// Quoted fields.
+			"(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+
+			// Standard fields.
+			"([^\"\\" + strDelimiter + "\\r\\n]*))"
+		),
+		"gi"
+		);
+
+
+	// Create an array to hold our data. Give the array
+	// a default empty first row.
+	var arrData = [[]];
+
+	// Create an array to hold our individual pattern
+	// matching groups.
+	var arrMatches = null;
+
+
+	// Keep looping over the regular expression matches
+	// until we can no longer find a match.
+	while (arrMatches = objPattern.exec( strData )){
+
+		// Get the delimiter that was found.
+		var strMatchedDelimiter = arrMatches[ 1 ];
+
+		// Check to see if the given delimiter has a length
+		// (is not the start of string) and if it matches
+		// field delimiter. If id does not, then we know
+		// that this delimiter is a row delimiter.
+		if (
+			strMatchedDelimiter.length &&
+			strMatchedDelimiter !== strDelimiter
+			){
+
+			// Since we have reached a new row of data,
+			// add an empty row to our data array.
+			arrData.push( [] );
+
+		}
+
+		var strMatchedValue;
+
+		// Now that we have our delimiter out of the way,
+		// let's check to see which kind of value we
+		// captured (quoted or unquoted).
+		if (arrMatches[ 2 ]){
+
+			// We found a quoted value. When we capture
+			// this value, unescape any double quotes.
+			strMatchedValue = arrMatches[ 2 ].replace(
+				new RegExp( "\"\"", "g" ),
+				"\""
+				);
+
+		} else {
+
+			// We found a non-quoted value.
+			strMatchedValue = arrMatches[ 3 ];
+
+		}
+
+
+		// Now that we have our value string, let's add
+		// it to the data array.
+		arrData[ arrData.length - 1 ].push( strMatchedValue );
+	}
+
+	// Return the parsed data.
+	return( arrData );
+}
+
 function convertEurobank(filecontent){
 	let string = "Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\r\n";
 	var lines = filecontent.split('"\n"');
@@ -170,9 +253,11 @@ function convertFIBank(filecontent){
 			continue;
 		}
 		
+		// cut time when exists
 		columns[1] = columns[1].split(' - ')[0];
 		columns[2] = columns[2].split(' - ')[0];
 		
+		// add 0 when first symbol is dot
 		var debit_credit = (columns[3] == "" ? columns[4]:columns[3]);
 		if(debit_credit.indexOf(".") == 0){
 			debit_credit = "0" + debit_credit;
@@ -188,9 +273,9 @@ function convertFIBank(filecontent){
 					+ columns[2] + "," 						//valuedate
 					+ debit_credit + ","	 				// debit_credit
 					+ columns[5] + ","						//trname
-					+ columns[6] + ","							//contragent
-					+ columns[7] + ","							//rem_i
-					+ columns[8] + ","							//rem_ii
+					+ columns[6] + ","						//contragent
+					+ columns[7] + ","						//rem_i
+					+ columns[8] + ","						//rem_ii
 					+ columns[9]+ "\r\n";					//rem_iii
 		 
       //string += '\n';
@@ -200,36 +285,41 @@ function convertFIBank(filecontent){
 
 function convertHellenic(filecontent){
 	let string = "ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,PAYEE,DEBIT_CREDIT,VALUE DATE,BALANCE\r\n";
-	//console.log(filecontent);
+	console.log(filecontent);
 	var lines = filecontent.split('\n');
     for(var line = 1; line < lines.length; line++){
 		linestr = lines[line];
-		//linestr = linestr.substring(1, linestr.length - 1);
-		var columns = linestr.split('\n');
+		//linestr = linestr.replace('"', '');
+		
+		var columns = linestr.split(',');
 		
 		// check lines without data
 		if(columns.length == 1){
 			continue;
 		}
 		
-		/*columns[3] = columns[3].replace("Purchase  ", "");
-		columns[3] = columns[3].replace("Handling Fee  ", "");
-		columns[3] = columns[3].replace("- - Web Ref", "");
-		columns[3] = columns[3].replace(" - Web Ref", "");
-		columns[3] = columns[3].replace("F/O: ", "");*/
+		var array = CSVToArray(linestr, ",");
 		
-		var description = columns[4].split(' ')[0];
-		var payee = columns[4].substring(description.length, columns[5].length - description.length - 1);
 		
-		string += columns[0] + ","    						//ACCOUNT NO
-					+ columns[1] + ","						//PERIOD
-					+ columns[2] + "," 						//CURRENCY
-					+ columns[2] + "," 						//DATE
+		var description = array[0][4].split(' ')[0];
+		var payee = array[0][4].substring(description.length+1, array[0][4].length).trim();
+		var debit_credit = (array[0][5] == "0.00" ? array[0][6] : "-" + array[0][5])
+		
+		// delete "," in DEBIT_CREDIT
+		debit_credit = debit_credit.replace(',', '');
+		
+		// delete ".", and replace "," into "." in BALANCE
+		array[0][8] = array[0][8].replace('.', '').replace(',', '.').trim();
+		
+		string += array[0][0] + ","    						//ACCOUNT NO
+					+ array[0][1] + ","						//PERIOD
+					+ array[0][2] + "," 					//CURRENCY
+					+ array[0][3] + "," 					//DATE
 					+ description + ","						//DESCRIPTION
 					+ payee + ","							//PAYEE
-					+ columns[5] + ","	 					//DEBIT_CREDIT 
-					+ columns[6] + ","	 					//DEBIT_CREDIT 
-					+ columns[7]+ "\r\n";					//BALANCE
+					+ debit_credit + ","					//DEBIT_CREDIT 
+					+ array[0][7] + ","						//VALUE DATE
+					+ array[0][8] + "\r\n";					//BALANCE
 		 
       //string += '\n';
     }
@@ -251,16 +341,7 @@ function readFile(file) {
 	
 	if (ext.toLowerCase() == "xls"){
         var cfb = XLSX.read(event.target.result, {type: 'binary'});
-        //var wb = XLS.parse_xlscfb(cfb);
-        // Loop Over Each Sheet
-        //wb.SheetNames.forEach(function(sheetName) {
-            // Obtain The Current Row As CSV
-            /*var sCSV*/ result = XLS.utils.make_csv(cfb.Sheets[cfb.SheetNames[0]]);   
-            //var oJS = XLS.utils.sheet_to_row_object_array(wb.Sheets[sheetName]);   
-
-            //$("#my_file_output").html(sCSV);
-            //console.log(oJS)
-        //});
+        result = XLS.utils.make_csv(cfb.Sheets[cfb.SheetNames[0]]);   
 	}
 	var today = new Date();
 	var date = today.getFullYear() + String((today.getMonth()+1)).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
@@ -275,7 +356,8 @@ function readFile(file) {
 		string = convertEurobank(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
 	}else if(result.split('\n')[0] == 'reference,datetime,valuedate,debit,credit,trname,contragent,rem_i,rem_ii,rem_iii\r'){
 		string = convertFIBank(result);
-	}else if(ext == "xls"){
+	}else if((ext == "xls")&&(result.split('\n')[0] == 'ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,DEBIT,CREDIT,VALUE DATE,BALANCE')){
+		//alert(firstXLSLine);
 		string = convertHellenic(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
 	}else{
 		showout.innerHTML  = "Do not recognize the bank";

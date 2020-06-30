@@ -58,7 +58,7 @@ function initializeProgress(numFiles) {
 function updateProgress(fileNumber, percent) {
   uploadProgress[fileNumber] = percent
   let total = uploadProgress.reduce((tot, curr) => tot + curr, 0) / uploadProgress.length
-  console.debug('update', fileNumber, percent, total)
+  //console.debug('update', fileNumber, percent, total)
   progressBar.value = total
 }
 
@@ -82,7 +82,7 @@ function previewFile(file) {
 function readImage(file) {
   // Check if the file is an image.
   if (file.type && file.type.indexOf('image') === -1) {
-    console.log('File is not an image.', file.type, file);
+    //console.log('File is not an image.', file.type, file);
     return;
   }
 
@@ -283,11 +283,54 @@ function convertFIBank(filecontent){
 	return string;
 }
 
-function convertHellenic(filecontent){
-	let string = "ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,PAYEE,DEBIT_CREDIT,VALUE DATE,BALANCE\r\n";
-	console.log(filecontent);
-	var lines = filecontent.split('\n');
+function convertFIBank(filecontent){
+	let string = "reference,datetime,valuedate,debit_credit,trname,contragent,rem_i,rem_ii,rem_iii\r\n";
+	var lines = filecontent.split('\r\n');
     for(var line = 1; line < lines.length; line++){
+		linestr = lines[line];
+		//linestr = linestr.substring(1, linestr.length - 1);
+		var columns = linestr.split(',');
+		
+		// check lines without data
+		if(columns.length == 1){
+			continue;
+		}
+		
+		// cut time when exists
+		columns[1] = columns[1].split(' - ')[0];
+		columns[2] = columns[2].split(' - ')[0];
+		
+		// add 0 when first symbol is dot
+		var debit_credit = (columns[3] == "" ? columns[4]:columns[3]);
+		if(debit_credit.indexOf(".") == 0){
+			debit_credit = "0" + debit_credit;
+		} 
+		
+		if(columns[4] == ""){
+			debit_credit = "-" + debit_credit;
+		}
+		
+		
+		string += columns[0] + ","    						//reference
+					+ columns[1] + ","						//datetime
+					+ columns[2] + "," 						//valuedate
+					+ debit_credit + ","	 				// debit_credit
+					+ columns[5] + ","						//trname
+					+ columns[6] + ","						//contragent
+					+ columns[7] + ","						//rem_i
+					+ columns[8] + ","						//rem_ii
+					+ columns[9]+ "\r\n";					//rem_iii
+		 
+      //string += '\n';
+    }
+	return string;
+}
+
+function convertPaymentExecution(filecontent){
+	let string = "Date,Transaction ID,Description,Payee,Description1,Debit/Credit,Current balance\r\n";
+	//console.log(filecontent);
+	var lines = filecontent.split('\n');
+    for(var line = 4; line < lines.length; line++){
 		linestr = lines[line];
 		//linestr = linestr.replace('"', '');
 		
@@ -300,26 +343,89 @@ function convertHellenic(filecontent){
 		
 		var array = CSVToArray(linestr, ",");
 		
+		// cut time when exists
+		array[0][0] = array[0][0].split(' - ')[0];
 		
-		var description = array[0][4].split(' ')[0];
-		var payee = array[0][4].substring(description.length+1, array[0][4].length).trim();
-		var debit_credit = (array[0][5] == "0.00" ? array[0][6] : "-" + array[0][5])
+		// del "," in numbers
+		array[0][3] = array[0][3].replace(',', '');
+		array[0][4] = array[0][4].replace(',', '');
 		
-		// delete "," in DEBIT_CREDIT
-		debit_credit = debit_credit.replace(',', '');
 		
-		// delete ".", and replace "," into "." in BALANCE
-		array[0][8] = array[0][8].replace('.', '').replace(',', '.').trim();
+		var description = "";
+		var payee = "";
+		var description1 = "";
 		
-		string += array[0][0] + ","    						//ACCOUNT NO
-					+ array[0][1] + ","						//PERIOD
-					+ array[0][2] + "," 					//CURRENCY
-					+ array[0][3] + "," 					//DATE
-					+ description + ","						//DESCRIPTION
-					+ payee + ","							//PAYEE
-					+ debit_credit + ","					//DEBIT_CREDIT 
-					+ array[0][7] + ","						//VALUE DATE
-					+ array[0][8] + "\r\n";					//BALANCE
+		// rule 1
+		if(array[0][2] == "Transfer FEE: OWT fee"){
+			description = "Transfer FEE";
+			description1 = "OWT fee";
+		}
+		
+		// rule 2 start on Negative Interest Fee
+		if(array[0][2].indexOf("Negative Interest Fee ") == 0){
+			description = "Negative Interest Fee";
+			description1 = array[0][2].split('Negative Interest Fee ')[1];
+		}
+		
+		// rule 3 start on OWT/ 
+		// from "OWT/ Invoice 2020-04 from 24.04.2020/ EUR 1,006.00 Yuliia Smalii Invoice 2020-04 from 24.04.2020 - TR 271725 - Return of Funds"
+		// to Invoice 2020-04 from 24.04.2020,Yuliia Smalii,TR 271725 - Return of Funds 
+		if(array[0][2].indexOf("OWT/ ") == 0){
+			description = array[0][2].split('/ ')[1];
+			// after next code-line "EUR 1,006.00 Yuliia Smalii  - TR 271725 - Return of Funds"
+			payee = array[0][2].split('/ ')[2].replace(description,"");
+			// after next code-line "1,006.00 Yuliia Smalii  - TR 271725 - Return of Funds"
+			payee = payee.substring(4, payee.length);
+			// after next code-line "Yuliia Smalii  - TR 271725 - Return of Funds"
+			payee = payee.substring(payee.indexOf(" ")+1, payee.length);
+			// divide by " - "
+			if(payee.split(' - ').length > 1){
+				description1 = payee.replace(payee.split(' - ')[0] + " - ","").trim()
+			} 
+			payee = payee.split(' - ')[0].trim();
+		}
+		
+		// rule 4 start on SEPA deposit
+		if(array[0][2].indexOf("SEPA deposit") == 0){
+			// description between Msg: and EndToEndId:
+			description = array[0][2].substring(array[0][2].indexOf("Msg:") + 4,array[0][2].indexOf("EndToEndId:")).trim();
+			// description1 include id: and numbers after EndToEndId:
+			if(array[0][2].split('EndToEndId:').length > 1){
+				description1 = array[0][2].split('EndToEndId:')[1];
+				if(description1.indexOf("Id:") > -1){
+					description1 = description1.substring(description1.indexOf("Id:"), description1.length);
+				}else{
+					description1 = "";
+				}
+			}
+			// payee is the text between "SEPA deposit - from " and "BIC:"
+			// SEPA deposit - from THE LUCK FACTORY EUROPE LIMITED BIC:
+			payee = array[0][2].substring(0, array[0][2].indexOf("Msg:"));
+			payee = payee.replace("SEPA deposit - from ", "");
+			payee = payee.replace("SEPA deposit - ", "");
+			if(payee.indexOf("BIC:") > -1){
+				payee = payee.substring(0, payee.indexOf("BIC:"));
+			}
+			if(payee.indexOf("IBAN:") > -1){
+				payee = payee.substring(0, payee.indexOf("IBAN:"));
+			}
+			
+		}
+		
+		// rule 5 when description= "Own transfer between accounts" then description1 = description
+		if(description == "Own transfer between accounts"){
+			description1 = description;
+		}
+		
+		
+		
+		string += array[0][0] + ","    						//Date
+					+ array[0][1] + ","						//Transaction ID
+					+ description + "," 					//Description
+					+ payee + "," 					//Payee
+					+ description1 + ","						//Description1
+					+ array[0][3] + ","							//Debit/Credit
+					+ array[0][4] + "\r\n";					//Current balance 
 		 
       //string += '\n';
     }
@@ -345,7 +451,7 @@ function readFile(file) {
 	}
 	var today = new Date();
 	var date = today.getFullYear() + String((today.getMonth()+1)).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
-	var time = +String(today.getHours()).padStart(2, '0')  + String(today.getMinutes()).padStart(2, '0')  + String(today.getSeconds()).padStart(2, '0');
+	var time = String(today.getHours()).padStart(2, '0')  + String(today.getMinutes()).padStart(2, '0')  + String(today.getSeconds()).padStart(2, '0');
 	var dateTime = date+time;
 	
 	fileName = file.name.slice(0,file.name.length - ext.length -1) + '_converted_at_' + dateTime + '.csv';
@@ -356,6 +462,8 @@ function readFile(file) {
 		string = convertEurobank(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
 	}else if(result.split('\n')[0] == 'reference,datetime,valuedate,debit,credit,trname,contragent,rem_i,rem_ii,rem_iii\r'){
 		string = convertFIBank(result);
+	}else if(result.split('\n')[0] == '"Account owner","Account number","Account type",Currency,Description,Balance'){
+		string = convertPaymentExecution(result);
 	}else if((ext == "xls")&&(result.split('\n')[0] == 'ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,DEBIT,CREDIT,VALUE DATE,BALANCE')){
 		//alert(firstXLSLine);
 		string = convertHellenic(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
@@ -364,7 +472,7 @@ function readFile(file) {
 		return;
 	}
 	
-    console.log (string);
+    //console.log (string);
     var blob = new Blob([string], {
         type: "data:text/plain;charset=utf-8"
     });
@@ -380,7 +488,7 @@ function readFile(file) {
   reader.addEventListener('progress', (event) => {
     if (event.loaded && event.total) {
       const percent = (event.loaded / event.total) * 100;
-      console.log(`Progress: ${Math.round(percent)}`);
+      //console.log(`Progress: ${Math.round(percent)}`);
     }
   });
   
@@ -403,7 +511,7 @@ function doSave() {
         humidity: 85.4
     };
     var string = JSON.stringify (data);
-    console.log (string);
+    //console.log (string);
     var blob = new Blob([string], {
         type: "text/plain;charset=utf-8"
     });

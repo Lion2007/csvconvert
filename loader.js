@@ -111,6 +111,7 @@ function convertEurobank(filecontent){
 		columns[3] = columns[3].replace("- - Web Ref", "");
 		columns[3] = columns[3].replace(" - Web Ref", "");
 		columns[3] = columns[3].replace("F/O: ", "");
+		columns[3] = columns[3].replace(" /Loan agreement from UBO", "");
 		
 		var description = columns[3].split(' - ')[0];
 		var payee = '';

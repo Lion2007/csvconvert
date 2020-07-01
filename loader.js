@@ -283,12 +283,14 @@ function convertFIBank(filecontent){
 	return string;
 }
 
-function convertFIBank(filecontent){
-	let string = "reference,datetime,valuedate,debit_credit,trname,contragent,rem_i,rem_ii,rem_iii\r\n";
-	var lines = filecontent.split('\r\n');
+function convertHellenic(filecontent){
+	let string = "ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,PAYEE,DEBIT_CREDIT,VALUE DATE,BALANCE\r\n";
+	console.log(filecontent);
+	var lines = filecontent.split('\n');
     for(var line = 1; line < lines.length; line++){
 		linestr = lines[line];
-		//linestr = linestr.substring(1, linestr.length - 1);
+		//linestr = linestr.replace('"', '');
+		
 		var columns = linestr.split(',');
 		
 		// check lines without data
@@ -296,30 +298,28 @@ function convertFIBank(filecontent){
 			continue;
 		}
 		
-		// cut time when exists
-		columns[1] = columns[1].split(' - ')[0];
-		columns[2] = columns[2].split(' - ')[0];
-		
-		// add 0 when first symbol is dot
-		var debit_credit = (columns[3] == "" ? columns[4]:columns[3]);
-		if(debit_credit.indexOf(".") == 0){
-			debit_credit = "0" + debit_credit;
-		} 
-		
-		if(columns[4] == ""){
-			debit_credit = "-" + debit_credit;
-		}
+		var array = CSVToArray(linestr, ",");
 		
 		
-		string += columns[0] + ","    						//reference
-					+ columns[1] + ","						//datetime
-					+ columns[2] + "," 						//valuedate
-					+ debit_credit + ","	 				// debit_credit
-					+ columns[5] + ","						//trname
-					+ columns[6] + ","						//contragent
-					+ columns[7] + ","						//rem_i
-					+ columns[8] + ","						//rem_ii
-					+ columns[9]+ "\r\n";					//rem_iii
+		var description = array[0][4].split(' ')[0];
+		var payee = array[0][4].substring(description.length+1, array[0][4].length).trim();
+		var debit_credit = (array[0][5] == "0.00" ? array[0][6] : "-" + array[0][5])
+		
+		// delete "," in DEBIT_CREDIT
+		debit_credit = debit_credit.replace(',', '');
+		
+		// delete ".", and replace "," into "." in BALANCE
+		array[0][8] = array[0][8].replace('.', '').replace(',', '.').trim();
+		
+		string += array[0][0] + ","    						//ACCOUNT NO
+					+ array[0][1] + ","						//PERIOD
+					+ array[0][2] + "," 					//CURRENCY
+					+ array[0][3] + "," 					//DATE
+					+ description + ","						//DESCRIPTION
+					+ payee + ","							//PAYEE
+					+ debit_credit + ","					//DEBIT_CREDIT 
+					+ array[0][7] + ","						//VALUE DATE
+					+ array[0][8] + "\r\n";					//BALANCE
 		 
       //string += '\n';
     }
@@ -432,6 +432,66 @@ function convertPaymentExecution(filecontent){
 	return string;
 }
 
+function convertEcommBX(filecontent){
+	let string = "Execution Date,Value Date,,ID,Details,,Amount,,Balance\r\n";
+	var lines = filecontent.split('\n');
+	var prevline = "";
+    for(var line = 1; line < lines.length; line++){
+		linestr = prevline + lines[line];
+		//linestr = linestr.substring(1, linestr.length - 1);
+		var columns = linestr.split(',');
+		
+		// check lines without data
+		if(columns.length == 1){
+			continue;
+		}
+		
+		var array = CSVToArray(linestr, ",");
+		// skip bad lines
+		if((array[0][0].indexOf("Period") == 0)
+			||(array[0][0].indexOf("Account number") == 0)
+			||(array[0][0].indexOf("Date Issued") == 0)
+			||(array[0][0].indexOf("Currency") == 0)
+			||(array[0][0].indexOf("Starting Balance") == 0)
+			||(array[0][0].indexOf("Debit Turnover") == 0)
+			||(array[0][0].indexOf("Credit Turnover") == 0)
+			||(array[0][0].indexOf("Execution Date") == 0)
+			||(array[0][0] == "")){
+			continue;
+		}
+		
+		//console.log(linestr);
+		
+		// if Details ocupate two lines then save this part and skip 
+		if (array[0].length != 9){
+			prevline = linestr;// + "";
+			continue;
+		}else{
+			prevline = "";
+		}
+		
+		
+		// cut time when exists
+		array[0][0] = array[0][0].split(' ')[0];
+		
+		// del "." in numbers, and replace "," to "."
+		// 6.190,00 -> 6190.00
+		array[0][6] = array[0][6].replace('.', '').replace(',','.');
+		array[0][8] = array[0][8].replace('.', '').replace(',','.');
+		
+		string += array[0][0] + ","    						//Execution Date
+					+ array[0][1] + ","						//Value Date
+					+ "," 									//
+					+ array[0][3] + "," 					//ID
+					+ array[0][4] + ","						//Details
+					+ ","									//
+					+ array[0][6] + ","						//Amount
+					+ ","									//
+					+ array[0][8] + "\r\n";					//Balance
+    }
+	return string;
+}
+
 function readFile(file) {
   const reader = new FileReader();
   const ext = re.exec(file.name)[1];
@@ -464,6 +524,8 @@ function readFile(file) {
 		string = convertFIBank(result);
 	}else if(result.split('\n')[0] == '"Account owner","Account number","Account type",Currency,Description,Balance'){
 		string = convertPaymentExecution(result);
+	}else if(result.split('\n')[0] == ',,,,,THE LUCK FACTORY EUROPE LTD,,,'){
+		string = convertEcommBX(result);
 	}else if((ext == "xls")&&(result.split('\n')[0] == 'ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,DEBIT,CREDIT,VALUE DATE,BALANCE')){
 		//alert(firstXLSLine);
 		string = convertHellenic(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";

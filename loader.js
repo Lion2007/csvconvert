@@ -43,54 +43,12 @@ function handleDrop(e) {
   handleFiles(files)
 }
 
-let uploadProgress = []
-let progressBar = document.getElementById('progress-bar')
-
-function initializeProgress(numFiles) {
-  progressBar.value = 0
-  uploadProgress = []
-
-  for(let i = numFiles; i > 0; i--) {
-    uploadProgress.push(0)
-  }
-}
-
-function updateProgress(fileNumber, percent) {
-  uploadProgress[fileNumber] = percent
-  let total = uploadProgress.reduce((tot, curr) => tot + curr, 0) / uploadProgress.length
-  //console.debug('update', fileNumber, percent, total)
-  progressBar.value = total
-}
 
 function handleFiles(files) {
   files = [...files]
-  initializeProgress(files.length)
+  //initializeProgress(files.length)
   files.forEach(readFile)
   //files.forEach(previewFile)
-}
-
-function previewFile(file) {
-  let reader = new FileReader()
-  reader.readAsDataURL(file)
-  reader.onloadend = function() {
-    let img = document.createElement('img')
-    img.src = reader.result
-    document.getElementById('gallery').appendChild(img)
-  }
-}
-
-function readImage(file) {
-  // Check if the file is an image.
-  if (file.type && file.type.indexOf('image') === -1) {
-    //console.log('File is not an image.', file.type, file);
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.addEventListener('load', (event) => {
-    img.src = event.target.result;
-  });
-  reader.readAsDataURL(file);
 }
 
 function CSVToArray( strData, strDelimiter ){
@@ -422,9 +380,9 @@ function convertPaymentExecution(filecontent){
 		string += array[0][0] + ","    						//Date
 					+ array[0][1] + ","						//Transaction ID
 					+ description + "," 					//Description
-					+ payee + "," 					//Payee
-					+ description1 + ","						//Description1
-					+ array[0][3] + ","							//Debit/Credit
+					+ payee + "," 							//Payee
+					+ description1 + ","					//Description1
+					+ array[0][3] + ","						//Debit/Credit
 					+ array[0][4] + "\r\n";					//Current balance 
 		 
       //string += '\n';
@@ -498,26 +456,14 @@ function readFile(file) {
   
   reader.addEventListener('load', (event) => {
     var result = event.target.result;
-	
-	
-
-	
-	//showout.innerHTML  = result; 
 	fileName = file.name;
 	
 	if (ext.toLowerCase() == "xls"){
         var cfb = XLSX.read(event.target.result, {type: 'binary'});
         result = XLS.utils.make_csv(cfb.Sheets[cfb.SheetNames[0]]);   
 	}
-	var today = new Date();
-	var date = today.getFullYear() + String((today.getMonth()+1)).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
-	var time = String(today.getHours()).padStart(2, '0')  + String(today.getMinutes()).padStart(2, '0')  + String(today.getSeconds()).padStart(2, '0');
-	var dateTime = date+time;
-	
-	fileName = file.name.slice(0,file.name.length - ext.length -1) + '_converted_at_' + dateTime + '.csv';
 	
 	var string = "";
-	// chekBankSignature
 	if(result.split('\n')[0] == '"Posting Date","Value Date","UTN","Description","Debit","Credit","Balance"'){
 		string = convertEurobank(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
 	}else if(result.split('\n')[0] == 'reference,datetime,valuedate,debit,credit,trname,contragent,rem_i,rem_ii,rem_iii\r'){
@@ -527,35 +473,15 @@ function readFile(file) {
 	}else if(result.split('\n')[0] == ',,,,,THE LUCK FACTORY EUROPE LTD,,,'){
 		string = convertEcommBX(result);
 	}else if((ext == "xls")&&(result.split('\n')[0] == 'ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,DEBIT,CREDIT,VALUE DATE,BALANCE')){
-		//alert(firstXLSLine);
 		string = convertHellenic(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
 	}else{
 		showout.innerHTML  = "Do not recognize the bank";
 		return;
 	}
-	
-    //console.log (string);
-    var blob = new Blob([string], {
-        type: "data:text/plain;charset=utf-8"
-    });
-	
-    
-    saveAs(blob, fileName);
-	date = today.getFullYear()+'.'+String((today.getMonth()+1)).padStart(2, '0')+'.'+String(today.getDate()).padStart(2, '0');
-	time = today.getHours() + ":" + String(today.getMinutes()).padStart(2, '0') + ":" + String(today.getSeconds()).padStart(2, '0');
-	dateTime = date+" "+time;
-	showout.innerHTML  = fileName + " successfully converted at " + dateTime; 
-  });
-
-  reader.addEventListener('progress', (event) => {
-    if (event.loaded && event.total) {
-      const percent = (event.loaded / event.total) * 100;
-      //console.log(`Progress: ${Math.round(percent)}`);
-    }
+	doSave(string, fileName, ext);
   });
   
   reader.addEventListener('error', (event) => {
-      //console.log(reader.error);
 	  showout.innerHTML  = reader.error; 
     });
   if ((ext.toLowerCase() == "xls")||(ext.toLowerCase() == "xlsx")){
@@ -566,17 +492,21 @@ function readFile(file) {
   
 }
 
-function doSave() {
-    var filename = prompt("File name? ", "data.txt");
-    var data = {
-        temp: 36.5,
-        humidity: 85.4
-    };
-    var string = JSON.stringify (data);
-    //console.log (string);
-    var blob = new Blob([string], {
-        type: "text/plain;charset=utf-8"
+function doSave(content, filename, ext) {
+	var today = new Date();
+	var date = today.getFullYear() + String((today.getMonth()+1)).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+	var time = String(today.getHours()).padStart(2, '0')  + String(today.getMinutes()).padStart(2, '0')  + String(today.getSeconds()).padStart(2, '0');
+	var dateTime = date+time;
+	
+	fileName = filename.slice(0,filename.length - ext.length -1) + '_converted_at_' + dateTime + '.csv';
+	
+    var blob = new Blob([content], {
+        type: "data:text/plain;charset=utf-8"
     });
-    
-    saveAs(blob, filename);
+	
+    saveAs(blob, fileName);
+	date = today.getFullYear()+'.'+String((today.getMonth()+1)).padStart(2, '0')+'.'+String(today.getDate()).padStart(2, '0');
+	time = today.getHours() + ":" + String(today.getMinutes()).padStart(2, '0') + ":" + String(today.getSeconds()).padStart(2, '0');
+	dateTime = date+" "+time;
+	showout.innerHTML  = fileName + " successfully converted at " + dateTime; 
 }

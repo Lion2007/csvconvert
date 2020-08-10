@@ -477,30 +477,34 @@ function readFile(file) {
   const ext = re.exec(file.name)[1];
   
   reader.addEventListener('load', (event) => {
-    var result = event.target.result;
-	fileName = file.name;
-	
-	if (ext.toLowerCase() == "xls"){
-        var cfb = XLSX.read(event.target.result, {type: 'binary'});
-        result = XLS.utils.make_csv(cfb.Sheets[cfb.SheetNames[0]]);   
+	try{
+		var result = event.target.result;
+		fileName = file.name;
+		
+		if (ext.toLowerCase() == "xls"){
+			var cfb = XLSX.read(event.target.result, {type: 'binary'});
+			result = XLS.utils.make_csv(cfb.Sheets[cfb.SheetNames[0]]);   
+		}
+		
+		var string = "";
+		if(result.split('\n')[0] == '"Posting Date","Value Date","UTN","Description","Debit","Credit","Balance"'){
+			string = convertEurobank(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
+		}else if(result.split('\n')[0] == 'reference,datetime,valuedate,debit,credit,trname,contragent,rem_i,rem_ii,rem_iii\r'){
+			string = convertFIBank(result);
+		}else if(result.split('\n')[0] == '"Account owner","Account number","Account type",Currency,Description,Balance'){
+			string = convertPaymentExecution(result);
+		}else if(result.split('\n')[0] == ',,,,,THE LUCK FACTORY EUROPE LTD,,,'){
+			string = convertEcommBX(result);
+		}else if((ext == "xls")&&(result.split('\n')[0] == 'ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,DEBIT,CREDIT,VALUE DATE,BALANCE')){
+			string = convertHellenic(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
+		}else{
+			showout.innerHTML  = "Do not recognize the bank";
+			return;
+		}
+		doSave(string, fileName, ext);
+	} catch(e) {
+			showout.innerHTML  = 'Ошибка ' + e.name + ":" + e.message + "\n" + e.stack;
 	}
-	
-	var string = "";
-	if(result.split('\n')[0] == '"Posting Date","Value Date","UTN","Description","Debit","Credit","Balance"'){
-		string = convertEurobank(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
-	}else if(result.split('\n')[0] == 'reference,datetime,valuedate,debit,credit,trname,contragent,rem_i,rem_ii,rem_iii\r'){
-		string = convertFIBank(result);
-	}else if(result.split('\n')[0] == '"Account owner","Account number","Account type",Currency,Description,Balance'){
-		string = convertPaymentExecution(result);
-	}else if(result.split('\n')[0] == ',,,,,THE LUCK FACTORY EUROPE LTD,,,'){
-		string = convertEcommBX(result);
-	}else if((ext == "xls")&&(result.split('\n')[0] == 'ACCOUNT NO,PERIOD,CURRENCY,DATE,DESCRIPTION,DEBIT,CREDIT,VALUE DATE,BALANCE')){
-		string = convertHellenic(result);//"Posting Date,Value Date,UTN,Description,Payee,Debit_Credit,Balance\n";
-	}else{
-		showout.innerHTML  = "Do not recognize the bank";
-		return;
-	}
-	doSave(string, fileName, ext);
   });
   
   reader.addEventListener('error', (event) => {

@@ -329,18 +329,40 @@ function convertPaymentExecution(filecontent){
 		// from "OWT/ Invoice 2020-04 from 24.04.2020/ EUR 1,006.00 Yuliia Smalii Invoice 2020-04 from 24.04.2020 - TR 271725 - Return of Funds"
 		// to Invoice 2020-04 from 24.04.2020,Yuliia Smalii,TR 271725 - Return of Funds 
 		if(array[0][2].indexOf("OWT/ ") == 0){
-			description = array[0][2].split('/ ')[1];
-			// after next code-line "EUR 1,006.00 Yuliia Smalii  - TR 271725 - Return of Funds"
-			payee = array[0][2].split('/ ')[2].replace(description,"");
-			// after next code-line "1,006.00 Yuliia Smalii  - TR 271725 - Return of Funds"
-			payee = payee.substring(4, payee.length);
-			// after next code-line "Yuliia Smalii  - TR 271725 - Return of Funds"
-			payee = payee.substring(payee.indexOf(" ")+1, payee.length);
-			// divide by " - "
-			if(payee.split(' - ').length > 1){
-				description1 = payee.replace(payee.split(' - ')[0] + " - ","").trim()
-			} 
-			payee = payee.split(' - ')[0].trim();
+			if(array[0][2].split('/ ').length >= 3){ 
+				description = array[0][2].split('/ ')[1];
+				// after next code-line "EUR 1,006.00 Yuliia Smalii  - TR 271725 - Return of Funds"
+				payee = array[0][2].split('/ ')[2].replace(description,"");
+				// after next code-line "1,006.00 Yuliia Smalii  - TR 271725 - Return of Funds"
+				payee = payee.substring(4, payee.length);
+				// after next code-line "Yuliia Smalii  - TR 271725 - Return of Funds"
+				payee = payee.substring(payee.indexOf(" ")+1, payee.length);
+				// divide by " - "
+				if(payee.split(' - ').length > 1){
+					description1 = payee.replace(payee.split(' - ')[0] + " - ","").trim()
+				} 
+				payee = payee.split(' - ')[0].trim();
+			}
+			else if(array[0][2].split('/ ').length == 2){ 
+				// for lines like "OWT/ EUR 297.50 Prospectacy Ltd Invoice 2019CS2445"
+				var tempstr = array[0][2].split('/ ')[1];
+				if(tempstr.indexOf("Invoice") >= 0){
+					payee = tempstr.substring(0, tempstr.indexOf("Invoice"));
+					description = tempstr.substring(tempstr.indexOf("Invoice"), tempstr.length);
+				} else{
+					payee = tempstr;
+					description = tempstr;
+				}
+				
+				payee = payee.substring(4, payee.length);
+				// after next code-line "Yuliia Smalii  - TR 271725 - Return of Funds"
+				payee = payee.substring(payee.indexOf(" ")+1, payee.length);
+				// divide by " - "
+				if(payee.split(' - ').length > 1){
+					description1 = payee.replace(payee.split(' - ')[0] + " - ","").trim()
+				} 
+				payee = payee.split(' - ')[0].trim();
+			}
 		}
 		
 		// rule 4 start on SEPA deposit

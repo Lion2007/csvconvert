@@ -247,7 +247,6 @@ function convertHellenic(filecontent){
 	var lines = filecontent.split('\n');
     for(var line = 1; line < lines.length; line++){
 		linestr = lines[line];
-		//linestr = linestr.replace('"', '');
 		
 		var columns = linestr.split(',');
 		
@@ -264,10 +263,10 @@ function convertHellenic(filecontent){
 		var debit_credit = (array[0][5] == "0.00" ? array[0][6] : "-" + array[0][5])
 		
 		// delete "," in DEBIT_CREDIT
-		debit_credit = debit_credit.replace(',', '');
+		debit_credit = debit_credit.replace(/,/g, '');
 		
 		// delete ".", and replace "," into "." in BALANCE
-		array[0][8] = array[0][8].replace('.', '').replace(',', '.').trim();
+		array[0][8] = array[0][8].replace(/./g, '').replace(/,/g, '.').trim();
 		
 		string += array[0][0] + ","    						//ACCOUNT NO
 					+ array[0][1] + ","						//PERIOD
@@ -290,7 +289,6 @@ function convertPaymentExecution(filecontent){
 	var lines = filecontent.split('\n');
     for(var line = 4; line < lines.length; line++){
 		linestr = lines[line];
-		//linestr = linestr.replace('"', '');
 		
 		var columns = linestr.split(',');
 		
@@ -305,8 +303,8 @@ function convertPaymentExecution(filecontent){
 		array[0][0] = array[0][0].split(' - ')[0];
 		
 		// del "," in numbers
-		array[0][3] = array[0][3].replace(',', '');
-		array[0][4] = array[0][4].replace(',', '');
+		array[0][3] = array[0][3].replace(/,/g, '');
+		array[0][4] = array[0][4].replace(/,/g, '');
 		
 		
 		var description = "";
@@ -397,6 +395,18 @@ function convertPaymentExecution(filecontent){
 			description1 = description;
 		}
 		
+		/*if(description.indexOf(",") > -1){
+				description = description.substring(0, payee.indexOf(","));
+			}*/
+		description = description.replace(/,/g, '');
+		if(payee.indexOf(",") > -1){
+				payee = payee.substring(0, payee.indexOf(","));
+			}
+		description1 = description1.replace(/,/g, '');
+		/*if(description1.indexOf(",") > -1){
+				description1 = description1.substring(0, payee.indexOf(","));
+			}*/
+		
 		
 		
 		string += array[0][0] + ","    						//Date
@@ -456,8 +466,8 @@ function convertEcommBX(filecontent){
 		
 		// del "." in numbers, and replace "," to "."
 		// 6.190,00 -> 6190.00
-		array[0][6] = array[0][6].replace('.', '').replace(',','.');
-		array[0][8] = array[0][8].replace('.', '').replace(',','.');
+		array[0][6] = array[0][6].replace(/./g, '').replace(/,/g,'.');
+		array[0][8] = array[0][8].replace(/./g, '').replace(/,/g,'.');
 		
 		string += array[0][0] + ","    						//Execution Date
 					+ array[0][1] + ","						//Value Date
@@ -503,7 +513,7 @@ function readFile(file) {
 		}
 		doSave(string, fileName, ext);
 	} catch(e) {
-			showout.innerHTML  = 'Ошибка ' + e.name + ":" + e.message + "\n" + e.stack;
+			showout.innerHTML  = 'Error ' + e.name + ":" + e.message + "    " + e.stack;
 	}
   });
   
